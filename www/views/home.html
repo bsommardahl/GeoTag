@@ -1,0 +1,8 @@
+<h3>Welcome</h3>
+<div data-bind="html: Name"></div>
+<div data-bind="html: Points"></div>
+
+<h3>Nearby Players</h3>
+<div data-bind="foreach: NearbyPlayers">
+	<button data-bind="click: $parent.Tag"><span data-bind="html: Name"></span></button>
+</div>
