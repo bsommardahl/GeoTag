@@ -1,10 +1,11 @@
 define(["localStore"], function(local) {
+
 	var server = function() {
 
 		var socket = io.connect('http://localhost:3001');
 
 		var pointsReduced;
-		socket.on('pointsreduced', function(change){
+		socket.on('pointsreduced', function(change) {
 			console.log("### EVENT pointsreduced");
 			pointsReduced(change);
 		});
@@ -29,6 +30,7 @@ define(["localStore"], function(local) {
 
 				var def = $.Deferred();
 				socket.on("authGood", function(player) {
+					console.log("### SUCCESSFUL LOGIN");
 					currentPlayer = player;
 					def.resolve(player);
 				});
@@ -95,5 +97,6 @@ define(["localStore"], function(local) {
 			}
 		};
 	};
+	
 	return new server();
 });

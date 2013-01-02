@@ -1,7 +1,9 @@
 define(function() {
 
-	var deviceReady;
-	var positionChange;
+	var deviceReady = function() {
+	};
+	var positionChange = function() {
+	};
 
 	var startWatchingGPS = function() {
 		var watchID = navigator.geolocation.watchPosition(positionChange, function(error) {
@@ -20,13 +22,17 @@ define(function() {
 		},
 		onDeviceReady : function() {
 			deviceReady();
-			startWatchingGPS();			
+			startWatchingGPS();
 		}
 	};
 	app.initialize();
 
 	return {
-		OnDeviceReady : deviceReady,
-		OnPositionChange : positionChange
+		SetOnDeviceReady : function(cb) {
+			deviceReady = cb;
+		},
+		SetOnPositionChange : function(cb) {
+			positionChange = cb;
+		}
 	};
 });

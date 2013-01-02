@@ -1,4 +1,5 @@
 define(function() {
+
 	var viewPath = "/views/";
 	if (window.device) {
 		viewPath = "views/";

@@ -35,14 +35,14 @@ define(["config", "vm/login", "vm/home"], function(config, login, home) {
 			// }
 		});
 	};
-
+	
 	return {
 		GoToView : {
 			Login : function() {
-				displayView("login", new login());
+				displayView("login", new login());				
 			},
 			Home : function() {
-				displayView("home", new home());
+				displayView("home", new home());				
 			}
 		}
 	};
