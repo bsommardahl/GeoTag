@@ -1,36 +1,69 @@
-define(["localStore"], function(local) {
+define(["config", "localstore"], function(config, local) {
+
+	console.log("### REQUIRE: Loading server.js...");
 
 	var server = function() {
 
-		var socket = io.connect('http://localhost:3001');
+		var onLog = function() {
+		};
+		var log = function(message) {
+			message = "### SERVER - " + message;
+			onLog(message);
+			console.log(message);
+		};
 
-		var pointsReduced;
-		socket.on('pointsreduced', function(change) {
-			console.log("### EVENT pointsreduced");
-			pointsReduced(change);
-		});
+		var socket;
 
-		var pointsIncreased;
-		socket.on('pointsincreased', function(change) {
-			console.log("### EVENT pointsincreased");
-			pointsIncreased(change);
-		});
+		var connect = function(onConnected) {
 
-		var playerPositionChanged;
-		socket.on("playerpositionchanged", playerPositionChanged);
+			socket = io.connect(config.SocketServerUrl, [{
+				transports : ['xhr-polling', 'jsonp-polling']
+			}, {
+				"connectTimeout" : 5000
+			}]);
 
-		var tagged;
-		socket.on('tagged', tagged);
+			socket.on("connecting", function(transport_type) {
+				log("connecting to " + config.SocketServerUrl + " with " + transport_type);
+			});
+
+			socket.on("connect_failed", function() {
+				log("connection failed");
+			});
+
+			socket.on('connect', function() {
+				log("Connected");
+				onConnected();
+			});
+		};
 
 		var currentPlayer = local.GetObject("user");
 
 		return {
+			Connect : connect,
+			SetOnLog : function(cb) {
+				onLog = cb;
+			},
 			Login : function(username, password) {
 				socket.emit("auth", username, password);
 
 				var def = $.Deferred();
 				socket.on("authGood", function(player) {
-					console.log("### SUCCESSFUL LOGIN");
+					log("### SUCCESSFUL LOGIN");
+					currentPlayer = player;
+					def.resolve(player);
+				});
+				socket.on("authBad", function() {
+					def.reject("Invalid creds.");
+				});
+
+				return def;
+			},
+			Register : function(newPlayer) {
+				socket.emit("register", newPlayer);
+
+				var def = $.Deferred();
+				socket.on("welcome", function(player) {
+					log("### SUCCESSFUL REGISTRATION");
 					currentPlayer = player;
 					def.resolve(player);
 				});
@@ -43,9 +76,15 @@ define(["localStore"], function(local) {
 			Hello : function() {
 				var def = $.Deferred();
 				if (currentPlayer) {
+					log("HELLO - waiting for welcome");
 					socket.emit("hello", currentPlayer._id);
 
+					socket.on("authBad", function() {
+						def.reject("Player nolonger exists or invalid creds.");
+					});
+
 					socket.on("welcome", function(player) {
+						log("WELCOME")
 						currentPlayer = player;
 						def.resolve(player);
 					});
@@ -55,6 +94,7 @@ define(["localStore"], function(local) {
 				return def;
 			},
 			UpdatePosition : function(x, y) {
+				log("UPDATING SERVER with new position");
 				socket.emit('updateLocation', {
 					PlayerId : currentPlayer._id,
 					X : x,
@@ -64,6 +104,7 @@ define(["localStore"], function(local) {
 				return def;
 			},
 			GetNearbyPlayers : function() {
+				log("getNearbyPlayers");
 				socket.emit('getNearbyPlayers', currentPlayer._id);
 				var def = $.Deferred();
 				socket.on("nearbyPlayers", function(nearbyPlayers) {
@@ -83,20 +124,79 @@ define(["localStore"], function(local) {
 			},
 			Events : {
 				SetPointsReduced : function(cb) {
-					pointsReduced = cb;
+					socket.on('pointsreduced', function(change) {
+						log("EVENT pointsreduced");
+						cb(change);
+					});
 				},
 				SetPointsIncreased : function(cb) {
-					pointsIncreased = cb;
+					socket.on('pointsincreased', function(change) {
+						log("EVENT pointsincreased");
+						cb(change);
+					});
 				},
 				SetTagged : function(cb) {
-					tagged = cb;
+					socket.on('tagged', function(tagReport) {
+						log("EVENT tagged");
+						cb(tagReport);
+					});
 				},
 				SetPlayerPositionChanged : function(cb) {
-					playerPositionChanged = cb;
+					socket.on("playerpositionchanged", function(player) {
+						log("EVENT playerpositionchanged");
+						cb(player);
+					});
+
+				},
+				SetNewPlayerInRange : function(cb) {
+					socket.on("newPlayerInRange", function(change) {
+						log("EVENT newPlayerInRange");
+						cb(change);
+					});
+				},
+				SetPlayerLeftRange : function(cb) {
+					socket.on("playerLeftRange", function(change) {
+						log("EVENT playerLeftRange");
+						cb(change);
+					});
+				},
+				SetNearbyPlayers : function(cb) {
+					socket.on("nearbyPlayers", function(players) {
+						log("EVENT nearbyPlayers");
+						cb(players);
+					});
+				},
+				SetIllegalTag : function(cb) {
+					socket.on('illegalTag', function(reason) {
+						cb(reason);
+					});
+				},
+				SetAuthBad : function(cb) {
+					onAuthBad = cb;
+				},
+				SetOnPlayerAlreadyExists : function(cb) {
+					socket.on("userAlreadyExists", function(registration) {
+						log("EVENT userAlreadyExists");
+						cb(registration);
+					});
+				},
+				SetOnYourPositionChanged : function(cb) {
+					socket.on("yourPositionChanged", function(player) {
+						log("EVENT yourPositionChanged");
+						cb(player);
+					});
 				}
 			}
 		};
 	};
-	
-	return new server();
+
+	try {
+		var s = new server();
+
+		console.log("### REQUIRE: Loaded server.js");
+		return s;
+	} catch(err) {
+		console.log("### SERVER ERROR: " + err);
+	}
+
 });

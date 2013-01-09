@@ -1,8 +1,23 @@
-<h3>Welcome</h3>
-<div data-bind="html: Name"></div>
-<div data-bind="html: Points"></div>
+<div class='header'>
+	<h3><span data-bind="html: Name"></span> - Points: <span data-bind="html: Points"></span></h3>
+</div>
 
-<h3>Nearby Players</h3>
-<div data-bind="foreach: NearbyPlayers">
-	<button data-bind="click: $parent.Tag"><span data-bind="html: Name"></span></button>
+<div id="map_canvas" style="width:320px; height:350px"></div>
+
+<button data-bind="click: Logout">
+	Logout
+</button>
+<button data-bind="click: ToggleShowLocation">
+	Show/Hide Location (Debug Only)
+</button>
+
+<div data-bind="visible: ShowLocation">
+	<h3>Location</h3>
+	x:
+	<input data-bind="value: X"/>
+	, y:
+	<input data-bind='value: Y'/>
+	<button data-bind="click: SetLocation">
+		Set
+	</button>
 </div>

@@ -1,13 +1,30 @@
 define(function() {
 
-	var store = window.localStorage, debugMode = false;
+	console.log("### REQUIRE: Loading localStore.js...");
 
-	return {
-		SaveObject : function(key, value) {
-			store.setItem(key, JSON.stringify(value));
-		},
-		GetObject : function(key) {
-			return JSON.parse(store.getItem(key));
-		}
+	var local = function() {
+
+		var store = window.localStorage;
+
+		return {
+			SaveObject : function(key, value) {
+				try {
+					store.setItem(key, JSON.stringify(value));
+				} catch(err) {
+					console.log("### ERROR: Could not save " + key + ". " + err);
+				}
+			},
+			GetObject : function(key) {
+				return JSON.parse(store.getItem(key));
+			},
+			Kill : function(key) {
+				store.removeItem(key);
+			}
+		};
 	};
+
+	var l = new local();
+	console.log("### REQUIRE: Loaded localStore.js");
+
+	return l;
 });

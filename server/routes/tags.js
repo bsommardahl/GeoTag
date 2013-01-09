@@ -1,32 +1,14 @@
-var mongo = require('mongodb');
 var q = require('q');
 var moment = require('moment');
 var ee = require("../eventer");
-
-var Server = mongo.Server, Db = mongo.Db, BSON = mongo.BSONPure;
-
-var server = new Server('localhost', 27017, {
-	auto_reconnect : true
-});
-db = new Db('GeoTag', server, {
-	safe : false
-});
-
-db.open(function(err, db) {
-	if (!err) {
-		db.collection('tags', {
-			safe : true
-		}, function(err, collection) {
-			if (err) {//collection does not yet exist.
-				//populate();
-			}
-		});
-	}
-});
+var players = require("./players");
+var dc = require("../dataContext");
+var linq = require("../linq");
+var socketStore = require("../socketStore");
 
 var insertNewTag = function(newTag) {
 	var def = q.defer();
-	db.collection('tags', function(err, coll) {
+	dc.Collection.Tags().then(function(coll) {
 		coll.insert(newTag, {
 			safe : true
 		}, function(err, newDoc) {
@@ -40,7 +22,7 @@ var insertNewTag = function(newTag) {
 					console.log(tagger);
 					console.log("### EMITTING DOMAIN EVENT tagged");
 					ee.emit("tagged", {
-						PlayerId: newTag.TaggedId,
+						PlayerId : newTag.TaggedId,
 						TaggedBy : tagger,
 						LostPoints : 50
 					});
@@ -64,29 +46,61 @@ var insertNewTag = function(newTag) {
 	return def.promise;
 };
 
-exports.Create = function(newTag) {
-	newTag.Created = moment()._d;
-	console.log("### Creating Tag...")
+var create = function(newTag) {
 
-	//clean up the json obj
-	newTag.TaggerId = new BSON.ObjectID(newTag.TaggerId.toString());
-	newTag.TaggedId = new BSON.ObjectID(newTag.TaggedId.toString());
+	var def = q.defer();
 
-	insertNewTag(newTag).then(function(createdTag) {
-		console.log("### TAG CREATED.");
+	//first need to make sure it's okay to tag this person.
+	//the two players have to be within X meters of each other to be able to tag or be tagged
+	//the X meters is the "TagZone".
 
-		// var data = {
-		// Status : "Ok",
-		// Tag : createdTag
-		// };
-		// console.log("### Returning response:");
-		// console.log(data);
-		//
-		// res.writeHead(200, {
-		// "Content-Type" : "application/json",
-		// "Access-Control-Allow-Origin" : "*"
-		// });
-		//
-		// res.end(JSON.stringify(data));
+	players.Get(newTag.TaggerId).then(function(player) {
+		players.GetPlayersInTagZone(player._id, player.LastLocation[0], player.LastLocation[1]).then(function(players) {
+			//is the tagged player, in fact, in the tagZone?
+			if (linq.Any(players, function(p) {
+				return p._id.toString() == newTag.TaggedId;
+			})) {
+				//cool, we this player can be tagged
+				newTag.Created = moment()._d;
+				newTag.TaggerId = dc.GetId(newTag.TaggerId.toString());
+				
+				insertNewTag(newTag).then(function(createdTag) {
+					console.log("### TAG CREATED.");
+					def.resolve(newTag);
+				});
+			} else {
+				//not in tagZone
+				def.reject("Tagged player is not in the tagZone.");
+			}
+		});
+	});
+	return def.promise;
+};
+
+exports.NotifyPlayerThatHeWasTagged = function(tagReport) {
+	console.log("### RESPONDING TO DOMAINEVENT tagged");
+	console.log(tagReport);
+	var taggedSockets = socketStore.Get(function(s) {
+		return s.PlayerId == tagReport.PlayerId;
+	});
+	console.log("### EMITTING tagged EVENT to " + taggedSockets.length + " players.");
+	linq.Each(taggedSockets, function(playerSocket) {
+		console.log("### EMITTING tagged EVENT to: " + JSON.stringify(tagReport.TaggedBy.Name));
+		playerSocket.Socket.emit("tagged", tagReport);
+		console.log("### DONE.");
+	});
+};
+
+exports.Init = function(socket, getSockets) {
+	getPlayerSockets = getSockets;
+
+	socket.on('tag', function(newTag) {
+		console.log("### TAG: " + JSON.stringify(newTag));
+		console.log(newTag);
+		create(newTag).then(function() {
+			//tag created
+		}).fail(function(reason) {
+			socket.emit("illegalTag", reason);
+		});
 	});
 };

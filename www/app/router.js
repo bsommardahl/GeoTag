@@ -1,4 +1,14 @@
-define(["config", "vm/login", "vm/home"], function(config, login, home) {
+define(["config", "vm/login", "vm/home", "vm/register"], function(config, login, home, register) {
+
+	console.log("### REQUIRE: Loading router.js...");
+
+	var onLog = function() {
+	};
+	var log = function(message) {
+		message = "### ROUTER: " + message;
+		console.log(message);
+		onLog(message);
+	};
 
 	var history = function(viewName, viewModel, showTitleBar) {
 		return {
@@ -12,6 +22,7 @@ define(["config", "vm/login", "vm/home"], function(config, login, home) {
 
 	var displayView = function(viewName, viewModel, showTitleBar, container) {
 		var viewPath = config.ViewPath + viewName + ".html";
+		log("displaying " + viewPath);
 		var contentContainer = container || config.ContentContainer;
 		var div = $("<div>");
 		$(contentContainer).empty().append(div);
@@ -35,15 +46,33 @@ define(["config", "vm/login", "vm/home"], function(config, login, home) {
 			// }
 		});
 	};
-	
+
+	var loginVm = function() {
+		var vm = new login();
+		vm.SetOnLog(function(message) {
+			onLog(message);
+		});
+		displayView("login", vm);
+	};
+
+	var homeVm = function() {
+		displayView("home", new home());
+	};
+
+	var registerVm = function() {
+		displayView("register", new register());
+	};
+
+	console.log("### REQUIRE: Loaded router.js");
+
 	return {
 		GoToView : {
-			Login : function() {
-				displayView("login", new login());				
-			},
-			Home : function() {
-				displayView("home", new home());				
-			}
+			Login : loginVm,
+			Home : homeVm,
+			Register : registerVm,
+		},
+		SetOnLog : function(cb) {
+			onLog = cb;
 		}
 	};
 });

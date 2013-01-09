@@ -1,38 +1,51 @@
 define(function() {
 
-	var deviceReady = function() {
-	};
-	var positionChange = function() {
-	};
+	console.log("### REQUIRE: Loading mobile.js...");
 
-	var startWatchingGPS = function() {
-		var watchID = navigator.geolocation.watchPosition(positionChange, function(error) {
+	var currentPosition;
+
+	var watchId;
+	var startWatchingGPS = function(positionChangeCallback) {
+		if (watchId) {
+			//should we be disposing of the watch somehow?
+		}
+
+		watchId = navigator.geolocation.watchPosition(function(position) {
+			console.log("### GPS: position changed");
+			currentPosition = {
+				X : position.coords.longitude,
+				Y : position.coords.latitude
+			};
+			currentPosition = position;
+			if (positionChangeCallback)
+				positionChangeCallback(position);
+		}, function(error) {
 			console.log('gps error - code: ' + error.code + '\n' + 'message: ' + error.message + '\n');
 		}, {
 			frequency : 3000 //3 seconds
 		});
 	};
 
-	var app = {
-		initialize : function() {
-			this.bindEvents();
-		},
-		bindEvents : function() {
-			document.addEventListener('deviceready', this.onDeviceReady, false);
-		},
-		onDeviceReady : function() {
-			deviceReady();
-			startWatchingGPS();
+	var start = function(whenReady) {
+		if (!window.device) {
+			whenReady();
+		} else {
+			document.addEventListener('deviceready', function() {
+				whenReady();
+				startWatchingGPS();
+			}, false);
 		}
+		console.log("### MOBILE: Started.");
+
 	};
-	app.initialize();
+
+	console.log("### REQUIRE: Loaded mobile.js");
 
 	return {
-		SetOnDeviceReady : function(cb) {
-			deviceReady = cb;
+		Start : start,
+		WatchPosition : function(cb) {
+			startWatchingGPS(cb);
 		},
-		SetOnPositionChange : function(cb) {
-			positionChange = cb;
-		}
+		GetCurrentPosition : currentPosition
 	};
 });
