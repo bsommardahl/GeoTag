@@ -35,19 +35,19 @@ eventer.on("takeawaypoints", function(pointReduction) {
 	players.TakeAwayPoints(pointReduction);
 });
 
-eventer.on("givepoints", function(pointIncrease) {
+eventer.on("givepoints", function(pointChange) {
 	console.log("### RESPONDING TO DOMAINEVENT givepoints");
-	players.GivePoints(pointIncrease);
+	players.GivePoints(pointChange);
 });
 
 eventer.on("pointsreduced", function(pointChange) {
 	console.log("### RESPONDING TO DOMAINEVENT pointsreduced");
-	players.NotifyPlayerOfPointsReduced(pointsChange);
+	players.NotifyPlayerOfPointsReduced(pointChange);
 });
 
 eventer.on("pointsincreased", function(pointChange) {
 	console.log("### RESPONDING TO DOMAINEVENT pointsincreased");
-	players.NotifyPlayerOfPointsIncreased(pointsChange);
+	players.NotifyPlayerOfPointsIncreased(pointChange);
 });
 
 eventer.on("playerLocationChanged", function(player) {

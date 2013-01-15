@@ -28,9 +28,12 @@ define(["config", "vm/login", "vm/home", "vm/register"], function(config, login,
 		$(contentContainer).empty().append(div);
 		$(div).load(viewPath, function() {
 			last.push(new history(viewName, viewModel, showTitleBar));
-
+			
 			if (viewModel) {
 				ko.applyBindings(viewModel, $(div)[0]);
+				if(viewModel.Ready){
+					viewModel.Ready();
+				}
 			};
 
 			// if (showTitleBar) {

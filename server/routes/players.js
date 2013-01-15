@@ -35,7 +35,6 @@ var insertNewPlayer = function(newPlayer) {
 };
 
 var updateThisPlayersPoints = function(playerId, newPoints) {
-	console.log("0");
 	var def = q.defer();
 	dc.Collection.Players().then(function(coll) {
 
@@ -51,12 +50,9 @@ var updateThisPlayersPoints = function(playerId, newPoints) {
 		}, {
 			safe : true
 		}, function(err, newDoc) {
-			console.log("2");
 
 			if (!err) {
 				get(playerId).then(function(player) {
-					console.log("### UPDATED PLAYER");
-					console.log(player);
 					def.resolve(player);
 				});
 			}
@@ -71,10 +67,7 @@ var getQuery = function(query) {
 	try {
 		dc.Collection.Players().then(function(coll) {
 			coll.findOne(query, function(err, doc) {
-				console.log("### ERR: " + err);
-
 				if (doc) {
-					console.log("### RESOLVING: " + JSON.stringify(doc))
 					def.resolve(doc);
 				} else {
 					console.log("### REJECTING")
@@ -121,18 +114,15 @@ exports.GivePoints = function(pointIncrease) {
 	console.log(pointIncrease);
 	//get player
 	get(pointIncrease.PlayerId).then(function(player) {
-		console.log("### GOT PLAYER");
-		console.log(player);
-		//update points
-		var newPoints = parseInt(player.Points || 0) + parseInt(pointIncrease.Points);
-		console.log("### UPDATING PLAYER POINTS to " + newPoints);
+		var oldPoints = parseInt(player.Points || 0);
+		var newPoints = oldPoints + parseInt(pointIncrease.Points);
+		console.log("### INCREASING PLAYER POINTS from " + oldPoints + " to " + newPoints);
 		updateThisPlayersPoints(player._id, newPoints).then(function(updatedPlayer) {
-			console.log("### PLAYER POINTS UPDATED");
-			//emit event
 			ee.emit("pointsincreased", {
 				PlayerId : updatedPlayer._id,
-				OldPoints : updatedPlayer.Points,
-				NewPoints : newPoints
+				OldPoints : oldPoints,
+				NewPoints : newPoints,
+				Change: pointIncrease.Points
 			});
 		});
 	});
@@ -143,18 +133,15 @@ exports.TakeAwayPoints = function(pointReduction) {
 	console.log(pointReduction);
 	//get player
 	get(pointReduction.PlayerId).then(function(player) {
-		console.log("### GOT PLAYER");
-		console.log(player);
-		//update points
-		var newPoints = parseInt(player.Points || 0) - parseInt(pointReduction.Points);
-		console.log("### UPDATING PLAYER POINTS to " + newPoints);
+		var oldPoints = parseInt(player.Points || 0);
+		var newPoints = oldPoints - parseInt(pointReduction.Points);
+		console.log("### REDUCING PLAYER POINTS from " + oldPoints + " to " + newPoints);
 		updateThisPlayersPoints(player._id, newPoints).then(function(updatedPlayer) {
-			console.log("### PLAYER POINTS UPDATED");
-			//emit event
 			ee.emit("pointsreduced", {
 				PlayerId : updatedPlayer._id,
-				OldPoints : updatedPlayer.Points,
-				NewPoints : newPoints
+				OldPoints : oldPoints,
+				NewPoints : newPoints,
+				Change: pointIncrease.Points
 			});
 		});
 	});
@@ -207,7 +194,7 @@ var getPlayersInRadius = function(playerId, x, y, radius, unitOfMeasurement) {
 					console.log("!!! ERROR: " + err);
 				cursor.sort({
 					Created : 1
-				}).toArray(function(err, items) {					
+				}).toArray(function(err, items) {
 					def.resolve(items);
 				});
 			});
@@ -284,13 +271,13 @@ exports.NotifyAllOfPlayerPositionChange = function(player) {
 		//notify the player that changed location of his new nearby players
 		//Not sure this is needed anymore. -Byron
 		// var playerSockets = socketStore.Get(function(s) {
-			// return s.PlayerId == player._id.toString();
+		// return s.PlayerId == player._id.toString();
 		// });
 		// console.log("### EMITTING nearbyPlayers EVENT to " + playerSockets.length + " players.");
 		// linq.Each(playerSockets, function(playerSocket) {
-			// console.log("### EMITTING nearbyPlayers EVENT to: " + JSON.stringify(player._id));
-			// playerSocket.Socket.emit("nearbyPlayers", nearbyPlayers);
-			// console.log("### DONE.");
+		// console.log("### EMITTING nearbyPlayers EVENT to: " + JSON.stringify(player._id));
+		// playerSocket.Socket.emit("nearbyPlayers", nearbyPlayers);
+		// console.log("### DONE.");
 		// });
 
 		//notify the nearby players that the player's location changed
@@ -311,15 +298,16 @@ exports.NotifyAllOfPlayerPositionChange = function(player) {
 	});
 };
 
-exports.NotifyPlayerOfPointsIncreased = function(pointChange) {
-	console.log(pointChange);
+exports.NotifyPlayerOfPointsIncreased = function(change) {
+	console.log("------------------------------------------------ NotifyPlayerOfPointsIncreased()");
+	console.log(change);
 	var playerSockets = socketStore.Get(function(s) {
-		return s.PlayerId == pointChange.PlayerId;
+		return s.PlayerId == change.PlayerId;
 	});
 	console.log("### EMITTING pointsincreased EVENT to " + playerSockets.length + " players.");
 	linq.Each(playerSockets, function(playerSocket) {
-		console.log("### EMITTING pointsincreased EVENT to: " + JSON.stringify(pointChange.PlayerId));
-		playerSocket.Socket.emit("pointsincreased", pointChange);
+		console.log("### EMITTING pointsincreased EVENT to: " + JSON.stringify(change.PlayerId));
+		playerSocket.Socket.emit("pointsincreased", change);
 		console.log("### DONE.");
 	});
 };
@@ -340,11 +328,11 @@ exports.Init = function(socket) {
 			console.log(player);
 			console.log("### HELLO " + player.Name);
 
-			socketStore.Add(socket, player);
+			socketStore.Add(socket, player).then(function() {
+				console.log("### PLAYER SOCKET PUSHED. Now with " + socketStore.Count.length + " sockets.");
+				socket.emit("welcome", player);
+			});
 
-			console.log("### PLAYER SOCKET PUSHED. Now with " + socketStore.Count.length + " sockets.");
-
-			socket.emit("welcome", player);
 		}).fail(function(err) {
 			console.log("ERR ON HELLO: " + err);
 			socket.emit("authBad", "PlayerId does not exist!");
