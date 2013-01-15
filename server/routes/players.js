@@ -251,7 +251,7 @@ exports.NotifyThatPlayerIsInRange = function(change) {
 	});
 };
 
-exports.NotifyPlayerThatHisPositionChanged = function(player) {
+var notifyPlayerThatHisPositionChanged = function(player) {
 	//first, notify this user of the location change
 	var playerSockets = socketStore.Get(function(s) {
 		return s.PlayerId == player._id;
@@ -264,6 +264,7 @@ exports.NotifyPlayerThatHisPositionChanged = function(player) {
 	});
 
 };
+ 
 exports.NotifyAllOfPlayerPositionChange = function(player) {
 
 	getNearbyPlayers(player._id, player.LastLocation[0], player.LastLocation[1]).then(function(nearbyPlayers) {
@@ -357,3 +358,8 @@ exports.Init = function(socket) {
 		});
 	});
 };
+
+ee.on("yourPositionChanged", function(player) {
+	console.log("### RESPONDING TO DOMAIN EVENT yourPositionChanged.");
+	notifyPlayerThatHisPositionChanged(player);
+});

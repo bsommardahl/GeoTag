@@ -299,6 +299,10 @@ define(["config", "localstore", "server", "mobile"], function(config, local, ser
 			toastr.success("You just won " + change.Change + " points!");
 		});
 
+		server.Events.SetPenalty(function(frozen) {
+			toastr.warning("You moved when you were frozen. So, you just lost " + frozen.LostPoints + " points.");
+		});
+
 		server.Events.SetNewPlayerInRange(function(change) {
 			var player = change.PlayerThatCameIntoRange;
 			player.LastLocation = change.NewPosition.Coords;

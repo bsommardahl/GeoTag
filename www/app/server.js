@@ -123,6 +123,12 @@ define(["config", "localstore"], function(config, local) {
 				}
 			},
 			Events : {
+				SetPenalty : function(cb) {
+					socket.on("penaltyBecasueYouMovedWhenFrozen", function(frozen) {
+						log("EVENT penaltyBecasueYouMovedWhenFrozen");
+						cb(frozen);
+					});
+				},
 				SetPointsReduced : function(cb) {
 					socket.on('pointsreduced', function(change) {
 						log("EVENT pointsreduced");

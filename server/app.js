@@ -55,11 +55,6 @@ eventer.on("playerLocationChanged", function(player) {
 	players.NotifyAllOfPlayerPositionChange(player);
 });
 
-eventer.on("yourPositionChanged", function(player) {
-	console.log("### RESPONDING TO DOMAIN EVENT yourPositionChanged.");
-	players.NotifyPlayerThatHisPositionChanged(player);
-});
-
 eventer.on("playerLeftRange", function(change) {
 	console.log("### RESPONDING TO DOMAINEVENT playerLeftRange");
 	players.NotifyThatPlayerLeftRange(change);

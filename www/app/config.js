@@ -10,8 +10,8 @@ define(function() {
 	console.log("### REQUIRE: Loaded config.js");
 
 	return {
-		//SocketServerUrl : 'http://localhost:3001',
-		SocketServerUrl : 'http://geotag.aws.af.cm:80',
+		SocketServerUrl : 'http://localhost:3001',
+		//SocketServerUrl : 'http://geotag.aws.af.cm:80',
 
 		ViewPath : viewPath,
 		ContentContainer : $("#content"),
