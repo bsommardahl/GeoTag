@@ -74,7 +74,7 @@ var getQuery = function(query) {
 				console.log("### ERR: " + err);
 
 				if (doc) {
-					console.log("### RESOLVING: " + doc)
+					console.log("### RESOLVING: " + JSON.stringify(doc))
 					def.resolve(doc);
 				} else {
 					console.log("### REJECTING")
@@ -164,6 +164,12 @@ exports.Get = get;
 
 var getPlayersInRadius = function(playerId, x, y, radius, unitOfMeasurement) {
 
+	// console.log("playerId:" + playerId);
+	// console.log("x:" + x);
+	// console.log("y:" + y);
+	// console.log("radius:" + radius);
+	// console.log("unitOfMeasurement:" + unitOfMeasurement);
+
 	var def = q.defer();
 
 	//query that filters this device's locations and only gives the most recent location
@@ -197,10 +203,11 @@ var getPlayersInRadius = function(playerId, x, y, radius, unitOfMeasurement) {
 			LastLocation : "2d"
 		}, function(err, indexName) {
 			coll.find(query, function(err, cursor) {
+				if (err)
+					console.log("!!! ERROR: " + err);
 				cursor.sort({
 					Created : 1
-				}).toArray(function(err, items) {
-					console.log("### GOT NEARBY PLAYERS, " + items.length + " in all.")
+				}).toArray(function(err, items) {					
 					def.resolve(items);
 				});
 			});
@@ -275,15 +282,16 @@ exports.NotifyAllOfPlayerPositionChange = function(player) {
 	getNearbyPlayers(player._id, player.LastLocation[0], player.LastLocation[1]).then(function(nearbyPlayers) {
 
 		//notify the player that changed location of his new nearby players
-		var playerSockets = socketStore.Get(function(s) {
-			return s.PlayerId == player._id.toString();
-		});
-		console.log("### EMITTING nearbyPlayers EVENT to " + playerSockets.length + " players.");
-		linq.Each(playerSockets, function(playerSocket) {
-			console.log("### EMITTING nearbyPlayers EVENT to: " + JSON.stringify(player._id));
-			playerSocket.Socket.emit("nearbyPlayers", nearbyPlayers);
-			console.log("### DONE.");
-		});
+		//Not sure this is needed anymore. -Byron
+		// var playerSockets = socketStore.Get(function(s) {
+			// return s.PlayerId == player._id.toString();
+		// });
+		// console.log("### EMITTING nearbyPlayers EVENT to " + playerSockets.length + " players.");
+		// linq.Each(playerSockets, function(playerSocket) {
+			// console.log("### EMITTING nearbyPlayers EVENT to: " + JSON.stringify(player._id));
+			// playerSocket.Socket.emit("nearbyPlayers", nearbyPlayers);
+			// console.log("### DONE.");
+		// });
 
 		//notify the nearby players that the player's location changed
 		linq.Each(nearbyPlayers, function(nearbyPlayer) {

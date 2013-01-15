@@ -11,14 +11,26 @@ define(function() {
 		}
 
 		watchId = navigator.geolocation.watchPosition(function(position) {
-			console.log("### GPS: position changed");
-			currentPosition = {
-				X : position.coords.longitude,
-				Y : position.coords.latitude
-			};
-			currentPosition = position;
-			if (positionChangeCallback)
-				positionChangeCallback(position);
+
+			var newLat = parseFloat(position.coords.latitude);
+			var newLong = parseFloat(position.coords.longitude);
+			
+			if(!currentPosition){
+				console.log("### MOBILE: First time encountering location from GPS.");
+			}
+			
+			var positionHasChanged = !currentPosition || currentPosition.X != newLong || currentPosition.Y != newLat;
+
+			if (positionHasChanged) {
+				console.log("### GPS: position changed - " + newLong + ", " + newLat);
+				currentPosition = {
+					X : newLong,
+					Y : newLat
+				};
+				currentPosition = position;
+				if (positionChangeCallback)
+					positionChangeCallback(position);
+			}
 		}, function(error) {
 			console.log('gps error - code: ' + error.code + '\n' + 'message: ' + error.message + '\n');
 		}, {

@@ -5,6 +5,25 @@ var eventer = require("../eventer");
 var dc = require("../dataContext");
 var linq = require("../linq");
 
+var Location = function(playerId, x, y) {
+
+	var created = moment()._d;
+
+	x = parseFloat(x);
+	y = parseFloat(y);
+	playerId = dc.GetId(playerId.toString());
+
+	console.log("@@ Created Location object for " + playerId + " at " + x + ", " + y);
+
+	return {
+		PlayerId : playerId,
+		Coords : [x, y],
+		X : x,
+		Y : y,
+		Created : created
+	};
+};
+
 var insertNewLocation = function(newLocation) {
 	var def = q.defer();
 	dc.Collection.Locations().then(function(coll) {
@@ -21,26 +40,31 @@ var insertNewLocation = function(newLocation) {
 var updateThisPlayersLastLocation = function(newLocation) {
 
 	console.log("### UPDATING PLAYER LOCATION, last location, that is.");
+	console.log("newLocation:" + JSON.stringify(newLocation));
+
 	var def = q.defer();
 	dc.Collection.Players().then(function(coll) {
-		var playerIdObj = dc.GetId(newLocation.PlayerId);
-		
+
 		coll.update({
-			_id : playerIdObj
+			_id : newLocation.PlayerId
 		}, {
 			$set : {
-				LastLocation : [newLocation.X, newLocation.Y],
-				LastLocationUpdated : moment()._d
+				LastLocation : newLocation.Coords,
+				LastLocationUpdated : newLocation.Created
 			}
 		}, {
 			safe : true
 		}, function(err, newDoc) {
+			if (err) {
+				console.log("!!! ERROR in updateThisPlayersLastLocation(): " + err);
+			}
 			console.log("### PLAYER LAST LOCATION UPDATED");
 			if (!err) {
 				players.Get(newLocation.PlayerId).then(function(player) {
 					console.log("### EMITTING DOMAIN EVENT yourPositionChanged.");
 					eventer.emit("yourPositionChanged", player);
-					def.resolve(player);
+					eventer.emit("playerLocationChanged", player);
+					def.resolve();
 				});
 			}
 		});
@@ -48,87 +72,189 @@ var updateThisPlayersLastLocation = function(newLocation) {
 	return def.promise;
 };
 
-var notifyOtherPlayersIfAffected = function(newLocation) {
-	var def = q.defer();
-	players.Get(newLocation.PlayerId).then(function(player) {
-		console.log("### NOTIFYING other players of the position change");
+var sayHelloToPlayersNowInRange = function(player, newLoc, oldLoc) {
 
-		if (!player.LastLocation) {
-			console.log("-- skipping notification of other players because the player doesn't have a 'last location'.");
-			def.resolve(newLocation);
-		} else {
-			//got both old and new. need to compare them					
-			players.GetNearbyPlayers(player._id, player.LastLocation[0], player.LastLocation[1]).then(function(oldCircle) {
-				players.GetNearbyPlayers(player._id, newLocation.X, newLocation.Y).then(function(newCircle) {
-					console.log("### GOT NEARBY for old locations and new - (" + oldCircle.length + ", " + newCircle.length + ")");
-					var oldIds = {};
-					linq.Each(oldCircle, function(p) {
-						oldIds[p._id.toString()] = p._id.toString();
-					});
+	//console.log("### sayHelloToPlayersNowInRange");
 
-					var newIds = {};
-					linq.Each(newCircle, function(p) {
-						newIds[p._id.toString()] = p._id.toString();
-					});
+	//got both old and new. need to compare them
+	players.GetNearbyPlayers(player._id, oldLoc.X, oldLoc.Y).then(function(oldCircle) {
 
-					var notifyThatPlayerIsntNearby = [];
-					for (var i in oldIds) {
-						if (!newIds[i]) {
-							//player exists in old, but not in new. player left old circle. notify
-							notifyThatPlayerIsntNearby.push(i);
-						}
-					}
+		//console.log("1");
+		//console.log("### GOT NEARBY PLAYERS for old locations - " + oldCircle.length);
 
-					var notifyThatThereIsANewPlayerNearby = [];
-					for (var i in newIds) {
-						if (!oldIds[i]) {
-							//player exists in new, but not in old. player joined new circle. notify
-							notifyThatThereIsANewPlayerNearby.push(i);
-						}
-					}
+		players.GetNearbyPlayers(player._id, newLoc.X, newLoc.Y).then(function(newCircle) {
 
-					linq.Each(notifyThatPlayerIsntNearby, function(playerId) {
-						console.log("### NOTIFYING playerLeftRange")
-						eventer.emit("playerLeftRange", {
-							PlayerId : playerId,
-							PlayerThatLeftRange : player
-						});
-					});
+			// console.log("2");
+			// console.log("### GOT NEARBY PLAYERS for new locations - " + newCircle.length);
 
-					linq.Each(notifyThatThereIsANewPlayerNearby, function(playerId) {
-						console.log("### NOTIFYING newPlayerInRange")
-						eventer.emit("newPlayerInRange", {
-							PlayerId : playerId,
-							PlayerThatCameIntoRange : player
-						});
-					});
-				});
+			var oldIds = {};
+			linq.Each(oldCircle, function(p) {
+				oldIds[p._id.toString()] = p._id.toString();
 			});
-			def.resolve(newLocation);
-		}
+
+			//console.log("3");
+
+			var newIds = {};
+			linq.Each(newCircle, function(p) {
+				newIds[p._id.toString()] = p._id.toString();
+			});
+
+			// var playerLeftRange = function(playerId) {
+			// console.log("### NOTIFYING playerLeftRange")
+			// eventer.emit("playerLeftRange", {
+			// PlayerId : playerId,
+			// PlayerThatLeftRange : player
+			// });
+			// };
+			//
+			// for (var playerId in oldIds) {
+			// if (!newIds[playerId]) {
+			// //player exists in old, but not in new. player left old circle. notify
+			// playerLeftRange(playerId);
+			// }
+			// }
+			//console.log("4");
+
+			var playerCameInToRange = function(playerId) {
+				console.log("### NOTIFYING newPlayerInRange")
+				eventer.emit("newPlayerInRange", {
+					PlayerId : playerId,
+					PlayerThatCameIntoRange : player,
+					NewPosition : newLoc
+				});
+			};
+
+			for (var playerId in newIds) {
+				if (!oldIds[playerId]) {
+					//player exists in new, but not in old. player joined new circle. notify
+					playerCameInToRange(playerId);
+				}
+			}
+		});
 	});
+};
+var sayGoodbyeToPlayersOutOfRange = function(player, newLoc, oldLoc) {
+	//got both old and new. need to compare them
+	//console.log("### sayGoodbyeToPlayersOutOfRange");
+
+	players.GetNearbyPlayers(player._id, oldLoc.X, oldLoc.Y).then(function(oldCircle) {
+
+		//console.log("### GOT NEARBY PLAYERS for old locations - " + oldCircle.length);
+
+		players.GetNearbyPlayers(player._id, newLoc.X, newLoc.Y).then(function(newCircle) {
+
+			// console.log("### GOT NEARBY PLAYERS for new locations - " + newCircle.length);
+
+			var oldIds = {};
+			linq.Each(oldCircle, function(p) {
+				oldIds[p._id.toString()] = p._id.toString();
+			});
+
+			var newIds = {};
+			linq.Each(newCircle, function(p) {
+				newIds[p._id.toString()] = p._id.toString();
+			});
+
+			var playerLeftRange = function(playerId) {
+				console.log("### NOTIFYING playerLeftRange")
+				eventer.emit("playerLeftRange", {
+					PlayerId : playerId,
+					PlayerThatLeftRange : player
+				});
+			};
+
+			for (var playerId in oldIds) {
+				if (!newIds[playerId]) {
+					//player exists in old, but not in new. player left old circle. notify
+					playerLeftRange(playerId);
+				}
+			}
+
+			// var playerCameInToRange = function(playerId) {
+			// console.log("### NOTIFYING newPlayerInRange")
+			// eventer.emit("newPlayerInRange", {
+			// PlayerId : playerId,
+			// PlayerThatCameIntoRange : player
+			// });
+			// };
+			//
+			// for (var playerId in newIds) {
+			// if (!oldIds[playerId]) {
+			// //player exists in new, but not in old. player joined new circle. notify
+			// playerCameInToRange(playerId);
+			// }
+			// }
+
+			//I'm feeling like this needs to be a three step deal -
+			//1) find out if this player has left range for any other players, notify them
+			//    (need existing neaby list and new hypothetical nearby list)
+			//2) update the player with the new location
+			//3) find out if this player has entered range for any other players, notify them
+			//    (need old nearby list and new nearby list) -- (for that, need old location)
+
+		});
+	});
+};
+
+var notifyPlayersWherePlayerIsEnteringRange = function(player, newLocation, oldLocation) {
+	var def = q.defer();
+	console.log("### notifyPlayersWherePlayerIsEnteringRange");
+	console.log("oldLocation:" + JSON.stringify(oldLocation));
+
+	if (!player.LastLocation) {
+		console.log("-- skipping notification of other players because the player doesn't have a 'last location'.");
+		def.resolve(newLocation);
+	} else {
+		sayHelloToPlayersNowInRange(player, newLocation, oldLocation);
+		def.resolve();
+	}
 	return def.promise;
 };
 
-var create = function(newLocation) {
-	var newItem = newLocation;
-	newItem.Created = moment()._d;
+var notifyPlayersWherePlayerIsLeavingRange = function(player, newLocation, oldLocation) {
+	var def = q.defer();
+	console.log("### notifyPlayersWherePlayerIsLeavingRange");
 
-	//clean up the json obj
-	newItem.X = parseFloat(newItem.X);
-	newItem.Y = parseFloat(newItem.Y);
+	if (!player.LastLocation) {
+		console.log("-- skipping notification of other players because the player doesn't have a 'last location'.");
+		def.resolve(newLocation);
+	} else {
+		sayGoodbyeToPlayersOutOfRange(player, newLocation, oldLocation);
+		console.log("lastLocation: " + JSON.stringify(oldLocation));
+		def.resolve();
+	}
+	return def.promise;
+};
 
-	//insert a logging record for the position change
-	return insertNewLocation(newItem)
-	//should check for nearby players and notify them if I have left their radius after the position change
-	.then(notifyOtherPlayersIfAffected)
-	//then, update the players last location
-	.then(updateThisPlayersLastLocation);
+var create = function(location) {
+
+	return players.Get(location.PlayerId).then(function(player) {
+
+		//insert a logging record for the position change
+		insertNewLocation(location);
+
+		var newLocation = location;
+		var oldLocation = new Location(player._id, player.LastLocation[0], player.LastLocation[1]);
+
+		//should check for nearby players and notify them if I have left their radius after the position change
+		notifyPlayersWherePlayerIsLeavingRange(player, newLocation, oldLocation)
+		//then, update the players last location
+		.then(function() {
+			//console.log("### 2");
+			return updateThisPlayersLastLocation(newLocation);
+		})
+		//then, check for nearby players and notify them if I have entered their radius after the position change
+		.then(function() {
+			//console.log("### 3");
+			return notifyPlayersWherePlayerIsEnteringRange(player, newLocation, oldLocation);
+		});
+
+	});
+
 };
 
 exports.Init = function(socket, allSockets) {
 	socket.on('updateLocation', function(newLocation) {
-		console.log("### UPDATING LOCATION: " + JSON.stringify(newLocation));
-		create(newLocation);
+		create(new Location(newLocation.PlayerId, newLocation.X, newLocation.Y));
 	});
 };

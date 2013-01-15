@@ -4,6 +4,15 @@
 
 <div id="map_canvas" style="width:320px; height:350px"></div>
 
+<div data-bind="visible: NearbyPlayers().length>0">
+	<h3>Nearby Players</h3>
+	<ul data-bind="foreach: NearbyPlayers">
+		<li>
+			<span data-bind="html: Name"></span>
+		</li>
+	</ul>
+</div>
+
 <button data-bind="click: Logout">
 	Logout
 </button>

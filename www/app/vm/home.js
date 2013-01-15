@@ -48,17 +48,21 @@ define(["config", "localstore", "server", "mobile"], function(config, local, ser
 				return p._id == playerId;
 			});
 			if (playerToRemove) {
-				log("removing player " + playerToRemove.Name);
 				playerToRemove.marker.setMap(null);
 				nearby.remove(playerToRemove);
+				log("Removed player from map: " + playerToRemove.Name);
 			}
 		};
 
 		var addPlayer = function(player) {
 			if (!map)
 				alert("No map.");
+
+			var latitude = player.LastLocation[1];
+			var longitude = player.LastLocation[0];
+
 			var marker = new google.maps.Marker({
-				position : new google.maps.LatLng(player.LastLocation[1], player.LastLocation[0]),
+				position : new google.maps.LatLng(latitude, longitude),
 				map : map,
 				title : player.Name
 			});
@@ -68,6 +72,7 @@ define(["config", "localstore", "server", "mobile"], function(config, local, ser
 			google.maps.event.addListener(marker, 'click', function() {
 				server.Actions.Tag(player._id);
 			});
+			log("Added player to map: " + player.Name);
 		};
 
 		var updatePlayer = function(player) {
@@ -85,48 +90,55 @@ define(["config", "localstore", "server", "mobile"], function(config, local, ser
 			}
 		};
 
-		var setMarkerForThisPlayer = function() {
-			if (map) {
-				var centerPoint = new google.maps.LatLng(y(), x());
-				map.setCenter(centerPoint);
+		var setMarkerForThisPlayer = function(longitude, latitude) {
 
-				//re-center marker
-				if (mapMarker) {
-					mapMarker.marker.setPosition(centerPoint);
-					mapMarker.x = x();
-					mapMarker.y = y();
-				}
-				//or create a new marker
-				else {
-					mapMarker = {
-						marker : new google.maps.Marker({
-							position : centerPoint,
-							map : map,
-							title : name()
-						}),
-						x : x(),
-						y : y()
-					};
-
-					// Add a Circle overlay to the map.
-					var circle = new google.maps.Circle({
-						map : map,
-						center : centerPoint,
-						fillColor : "#00FF00",
-						fillOpacity : 0.2,
-						strokeColor : "#00FF00",
-						strokeOpacity : 0.4,
-						strokeWeight : 2
-					});
-					circle.setRadius(config.TagZoneRadius);
-					circle.bindTo('center', mapMarker.marker, 'position');
-				}
+			if (!map) {
+				alert("Map not yet available!");
 			}
+
+			var centerPoint = new google.maps.LatLng(latitude, longitude);
+			map.setCenter(centerPoint);
+
+			//re-center marker
+			if (mapMarker) {
+				mapMarker.marker.setPosition(centerPoint);
+				mapMarker.x = longitude;
+				mapMarker.y = latitude;
+			}
+			//or create a new marker
+			else {
+				mapMarker = {
+					marker : new google.maps.Marker({
+						position : centerPoint,
+						map : map,
+						title : name()
+					}),
+					x : longitude,
+					y : latitude
+				};
+
+				// Add a Circle overlay to the map.
+				var circle = new google.maps.Circle({
+					map : map,
+					center : centerPoint,
+					fillColor : "#00FF00",
+					fillOpacity : 0.2,
+					strokeColor : "#00FF00",
+					strokeOpacity : 0.4,
+					strokeWeight : 2
+				});
+				circle.setRadius(config.TagZoneRadius);
+				circle.bindTo('center', mapMarker.marker, 'position');
+			}
+
 		};
 
-		var refreshPage = function(nearbyPlayers) {
+		var refreshPlayerMarkers = function(nearbyPlayers) {
 
-			setMarkerForThisPlayer();
+			if (!nearbyPlayers)
+				alert("nearbyPlayers was not provided.");
+
+			log("Refreshing player markers...");
 
 			//remove nearby players that are not in the new list of nearby players
 			$.each(nearby() || [], function() {
@@ -144,7 +156,7 @@ define(["config", "localstore", "server", "mobile"], function(config, local, ser
 				var newPlayer = this;
 
 				//if this player is not in the old list, add it
-				if (!any(nearby(), function(p) {
+				if (!any(nearby() || [], function(p) {
 					return p._id == newPlayer._id
 				})) {
 					addPlayer(newPlayer);
@@ -161,53 +173,63 @@ define(["config", "localstore", "server", "mobile"], function(config, local, ser
 			updatePlayer(player);
 		});
 
-		var establishInitialLocationInView = function(longitude, latitude) {
-
+		var updateViewModelWithNewLocation = function(longitude, latitude) {
 			x(longitude);
 			y(latitude);
 
 			var u = local.GetObject("user");
-			u.X = x();
-			u.Y = y();
+			u.X = longitude;
+			u.Y = latitude;
 			local.SaveObject("user", user);
+		};
+
+		var mapInitialized = false;
+
+		var initializeMap = function(longitude, latitude) {
+
+			var centerPoint = new google.maps.LatLng(latitude, longitude);
+
+			//user can still double tap a place on the map and the center moves
 
 			var mapOptions = {
-				center : new google.maps.LatLng(y(), x()),
-				zoom : 15,
+				center : centerPoint,
+				zoom : 17,
 				zoomControl : true,
 				streetViewControl : false,
 				scaleControl : false,
-				draggable : true,
+				draggable : false,
 				keyboardShortcuts : false,
 				mapTypeControl : false,
 				mapTypeId : google.maps.MapTypeId.ROADMAP
 			};
 			map = new google.maps.Map(document.getElementById("map_canvas"), mapOptions);
 
-			refreshNearbyPlayers();
-
-			hasPosition = true;
-
-			log("Initial location has been established.");
+			mapInitialized = true;
 		};
 
 		mobile.WatchPosition(function(newPosition) {
-
 			//this only sends the signal to the server that the position has changed. we will wait from a response
 			//from the server to actually update the viewModel (see server.SetOnYourPositionChanged)
 			server.UpdatePosition(newPosition.coords.longitude, newPosition.coords.latitude);
 		});
 
-		var hasPosition = false;
 		server.Events.SetOnYourPositionChanged(function(player) {
-			//here, we are responding to the position change in the server
-			log("Updating position in viewModel and view");
-			if (!hasPosition) {
-				establishInitialLocationInView(player.LastLocation[0], player.LastLocation[1]);
+
+			log("Updating current player's position in viewModel");
+
+			var latitude = player.LastLocation[1];
+			var longitude = player.LastLocation[0];
+
+			updateViewModelWithNewLocation(longitude, latitude);
+
+			if (!mapInitialized) {
+				log("Initializing map...");
+				initializeMap(longitude, latitude);
+				log("Getting initial nearby players...");
+				refreshNearbyPlayers();
 			}
 
-			refreshPage();
-
+			setMarkerForThisPlayer(longitude, latitude)
 		});
 
 		//I want to wait on the home page until we have had the chance to connect to the server
@@ -220,17 +242,23 @@ define(["config", "localstore", "server", "mobile"], function(config, local, ser
 			points(player.Points);
 
 			//on viewModel load, try to get location from current position
-			if (mobile.CurrentPosition) {
-				establishInitialLocationInView(mobile.CurrentPosition.X, mobile.CurrentPosition.Y);
-			}
-			//or from localStore
-			else if (user.X && user.Y) {
-				establishInitialLocationInView(user.X, user.Y);
-			}
-			//or from last reported location
-			else if (player.LastLocation) {
-				establishInitialLocationInView(player.LastLocation[0], player.LastLocation[1]);
-			}
+			//the mobile location should be considered the most authoritative
+			//except that we don't need to set it here... it should be done when we get
+			//a response from the server saying that the location has been updated.
+
+			//so I'm commenting all this out...
+
+			// if (mobile.CurrentPosition) {
+			// initializeMap(mobile.CurrentPosition.X, mobile.CurrentPosition.Y);
+			// }
+			// //or from localStore
+			// else if (user.X && user.Y) {
+			// initializeMap(user.X, user.Y);
+			// }
+			// //or from last reported location
+			// else if (player.LastLocation) {
+			// initializeMap(player.LastLocation[0], player.LastLocation[1]);
+			// }
 
 		}).fail(function(error) {
 			log(error);
@@ -257,16 +285,17 @@ define(["config", "localstore", "server", "mobile"], function(config, local, ser
 		});
 
 		server.Events.SetNewPlayerInRange(function(change) {
-			//console.log("")
-			refreshNearbyPlayers();
+			var player = change.PlayerThatCameIntoRange;
+			player.LastLocation = change.NewPosition.Coords;
+			addPlayer(player);
+			console.log(change);
 		});
 
 		server.Events.SetPlayerLeftRange(function(change) {
-			log(change);
 			removePlayer(change.PlayerThatLeftRange._id);
 		});
 
-		server.Events.SetNearbyPlayers(refreshPage);
+		server.Events.SetNearbyPlayers(refreshPlayerMarkers);
 
 		var showLocation = ko.observable();
 
