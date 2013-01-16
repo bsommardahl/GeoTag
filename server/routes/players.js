@@ -1,6 +1,6 @@
 var q = require('q');
 var moment = require('moment');
-var ee = require("../eventer");
+var eventer = require("../eventer");
 var dc = require("../dataContext");
 var socketStore = require("../socketStore");
 var linq = require("../linq");
@@ -109,7 +109,7 @@ var getByCreds = function(username, password) {
 	return def.promise;
 };
 
-exports.GivePoints = function(pointIncrease) {
+var givePoints = function(pointIncrease) {
 	console.log("### GETTING PLAYER");
 	console.log(pointIncrease);
 	//get player
@@ -118,17 +118,19 @@ exports.GivePoints = function(pointIncrease) {
 		var newPoints = oldPoints + parseInt(pointIncrease.Points);
 		console.log("### INCREASING PLAYER POINTS from " + oldPoints + " to " + newPoints);
 		updateThisPlayersPoints(player._id, newPoints).then(function(updatedPlayer) {
-			ee.emit("pointsincreased", {
+
+			notifyPlayerOfPointsIncreased({
 				PlayerId : updatedPlayer._id,
 				OldPoints : oldPoints,
 				NewPoints : newPoints,
-				Change: pointIncrease.Points
+				Change : pointIncrease.Points
 			});
+
 		});
 	});
 };
 
-exports.TakeAwayPoints = function(pointReduction) {
+var takeAwayPoints = function(pointReduction) {
 	console.log("### GETTING PLAYER");
 	console.log(pointReduction);
 	//get player
@@ -137,11 +139,11 @@ exports.TakeAwayPoints = function(pointReduction) {
 		var newPoints = oldPoints - parseInt(pointReduction.Points);
 		console.log("### REDUCING PLAYER POINTS from " + oldPoints + " to " + newPoints);
 		updateThisPlayersPoints(player._id, newPoints).then(function(updatedPlayer) {
-			ee.emit("pointsreduced", {
+			notifyPlayerOfPointsReduced({
 				PlayerId : updatedPlayer._id,
 				OldPoints : oldPoints,
 				NewPoints : newPoints,
-				Change: pointIncrease.Points
+				Change : pointIncrease.Points
 			});
 		});
 	});
@@ -213,7 +215,7 @@ exports.GetPlayersInTagZone = function(playerId, x, y) {
 	return getPlayersInRadius(playerId, x, y, 50, "meters");
 };
 
-exports.NotifyPlayerOfPointsReduced = function(pointChange) {
+var notifyPlayerOfPointsReduced = function(pointChange) {
 	var playerSockets = socketStore.Get(function(s) {
 		return s.PlayerId == pointChange.PlayerId;
 	});
@@ -225,7 +227,7 @@ exports.NotifyPlayerOfPointsReduced = function(pointChange) {
 	});
 };
 
-exports.NotifyThatPlayerLeftRange = function(change) {
+var notifyThatPlayerLeftRange = function(change) {
 	console.log(change);
 	var affectedSockets = socketStore.Get(function(s) {
 		return s.PlayerId == change.PlayerId;
@@ -238,7 +240,7 @@ exports.NotifyThatPlayerLeftRange = function(change) {
 	});
 };
 
-exports.NotifyThatPlayerIsInRange = function(change) {
+var notifyThatPlayerIsInRange = function(change) {
 	console.log(change);
 	var affectedSockets = socketStore.Get(function(s) {
 		return s.PlayerId == change.PlayerId;
@@ -264,8 +266,8 @@ var notifyPlayerThatHisPositionChanged = function(player) {
 	});
 
 };
- 
-exports.NotifyAllOfPlayerPositionChange = function(player) {
+
+var notifyAllOfPlayerPositionChange = function(player) {
 
 	getNearbyPlayers(player._id, player.LastLocation[0], player.LastLocation[1]).then(function(nearbyPlayers) {
 
@@ -299,7 +301,7 @@ exports.NotifyAllOfPlayerPositionChange = function(player) {
 	});
 };
 
-exports.NotifyPlayerOfPointsIncreased = function(change) {
+var notifyPlayerOfPointsIncreased = function(change) {
 	console.log("------------------------------------------------ NotifyPlayerOfPointsIncreased()");
 	console.log(change);
 	var playerSockets = socketStore.Get(function(s) {
@@ -359,7 +361,33 @@ exports.Init = function(socket) {
 	});
 };
 
-ee.on("yourPositionChanged", function(player) {
+eventer.on("yourPositionChanged", function(player) {
 	console.log("### RESPONDING TO DOMAIN EVENT yourPositionChanged.");
 	notifyPlayerThatHisPositionChanged(player);
 });
+
+eventer.on("playerLocationChanged", function(player) {
+	console.log("### RESPONDING TO DOMAIN EVENT playerLocationChanged.");
+	notifyAllOfPlayerPositionChange(player);
+});
+
+eventer.on("playerLeftRange", function(change) {
+	console.log("### RESPONDING TO DOMAINEVENT playerLeftRange");
+	notifyThatPlayerLeftRange(change);
+});
+
+eventer.on("newPlayerInRange", function(change) {
+	console.log("### RESPONDING TO DOMAINEVENT newPlayerInRange");
+	notifyThatPlayerIsInRange(change);
+});
+
+eventer.on("takeawaypoints", function(pointReduction) {
+	console.log("### RESPONDING TO DOMAINEVENT takeawaypoints");
+	takeAwayPoints(pointReduction);
+});
+
+eventer.on("givepoints", function(pointChange) {
+	console.log("### RESPONDING TO DOMAINEVENT givepoints");
+	givePoints(pointChange);
+});
+

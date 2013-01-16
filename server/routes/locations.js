@@ -74,49 +74,26 @@ var updateThisPlayersLastLocation = function(newLocation) {
 
 var sayHelloToPlayersNowInRange = function(player, newLoc, oldLoc) {
 
-	//console.log("### sayHelloToPlayersNowInRange");
-
 	//got both old and new. need to compare them
 	players.GetNearbyPlayers(player._id, oldLoc.X, oldLoc.Y).then(function(oldCircle) {
 
-		//console.log("1");
 		//console.log("### GOT NEARBY PLAYERS for old locations - " + oldCircle.length);
 
 		players.GetNearbyPlayers(player._id, newLoc.X, newLoc.Y).then(function(newCircle) {
 
-			// console.log("2");
 			// console.log("### GOT NEARBY PLAYERS for new locations - " + newCircle.length);
 
 			var oldIds = {};
 			linq.Each(oldCircle, function(p) {
 				oldIds[p._id.toString()] = p._id.toString();
-			});
-
-			//console.log("3");
+			});			
 
 			var newIds = {};
 			linq.Each(newCircle, function(p) {
 				newIds[p._id.toString()] = p._id.toString();
 			});
 
-			// var playerLeftRange = function(playerId) {
-			// console.log("### NOTIFYING playerLeftRange")
-			// eventer.emit("playerLeftRange", {
-			// PlayerId : playerId,
-			// PlayerThatLeftRange : player
-			// });
-			// };
-			//
-			// for (var playerId in oldIds) {
-			// if (!newIds[playerId]) {
-			// //player exists in old, but not in new. player left old circle. notify
-			// playerLeftRange(playerId);
-			// }
-			// }
-			//console.log("4");
-
-			var playerCameInToRange = function(playerId) {
-				console.log("### NOTIFYING newPlayerInRange")
+			var playerCameInToRange = function(playerId) {				
 				eventer.emit("newPlayerInRange", {
 					PlayerId : playerId,
 					PlayerThatCameIntoRange : player,
@@ -135,9 +112,7 @@ var sayHelloToPlayersNowInRange = function(player, newLoc, oldLoc) {
 };
 var sayGoodbyeToPlayersOutOfRange = function(player, newLoc, oldLoc) {
 	//got both old and new. need to compare them
-	//console.log("### sayGoodbyeToPlayersOutOfRange");
-
-	players.GetNearbyPlayers(player._id, oldLoc.X, oldLoc.Y).then(function(oldCircle) {
+		players.GetNearbyPlayers(player._id, oldLoc.X, oldLoc.Y).then(function(oldCircle) {
 
 		//console.log("### GOT NEARBY PLAYERS for old locations - " + oldCircle.length);
 
@@ -169,29 +144,6 @@ var sayGoodbyeToPlayersOutOfRange = function(player, newLoc, oldLoc) {
 					playerLeftRange(playerId);
 				}
 			}
-
-			// var playerCameInToRange = function(playerId) {
-			// console.log("### NOTIFYING newPlayerInRange")
-			// eventer.emit("newPlayerInRange", {
-			// PlayerId : playerId,
-			// PlayerThatCameIntoRange : player
-			// });
-			// };
-			//
-			// for (var playerId in newIds) {
-			// if (!oldIds[playerId]) {
-			// //player exists in new, but not in old. player joined new circle. notify
-			// playerCameInToRange(playerId);
-			// }
-			// }
-
-			//I'm feeling like this needs to be a three step deal -
-			//1) find out if this player has left range for any other players, notify them
-			//    (need existing neaby list and new hypothetical nearby list)
-			//2) update the player with the new location
-			//3) find out if this player has entered range for any other players, notify them
-			//    (need old nearby list and new nearby list) -- (for that, need old location)
-
 		});
 	});
 };

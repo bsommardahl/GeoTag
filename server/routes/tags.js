@@ -18,16 +18,17 @@ var insertNewTag = function(newTag) {
 				console.log("### INSERTED TAG");
 				var players = require("./players");
 				players.Get(newTag.TaggerId).then(function(tagger) {
-					player.Get(newTag.TaggedId).then(function(tagged) {
+					players.Get(newTag.TaggedId).then(function(tagged) {
 						console.log("### GOT TAGGER PLAYER");
 						console.log(tagger);
 						console.log("### EMITTING DOMAIN EVENT tagged");
-						ee.emit("tagged", {
+
+						notifyPlayerThatHeWasTagged({
 							PlayerId : newTag.TaggedId,
 							TaggedBy : tagger,
 							LostPoints : 50
 						});
-						console.log("### EMITTING DOMAIN EVENT takeawaypoints");
+
 						ee.emit("takeawaypoints", {
 							PlayerId : newTag.TaggedId,
 							Points : 50,
@@ -40,7 +41,7 @@ var insertNewTag = function(newTag) {
 						});
 						ee.emit("startFrozenPeriod", {
 							PlayerId : newTag.TaggedId,
-							Seconds : 60,
+							Seconds : 15,
 							PointsLostIfHeMoves : 200,
 							Location : tagged.LastLocation
 						});
@@ -86,7 +87,7 @@ var create = function(newTag) {
 	return def.promise;
 };
 
-exports.NotifyPlayerThatHeWasTagged = function(tagReport) {
+var notifyPlayerThatHeWasTagged = function(tagReport) {
 	console.log("### RESPONDING TO DOMAINEVENT tagged");
 	console.log(tagReport);
 	var taggedSockets = socketStore.Get(function(s) {
@@ -127,11 +128,60 @@ var notifyThePlayerOfTheFrozenMovementPenaly = function(frozen) {
 	});
 };
 
+var notifyThePlayerThatHeIsFrozen = function(frozen) {
+	ee.emit("addState", frozen.PlayerId, "frozen", {
+		Notification : "You are FROZEN. You cannot move from your current location for " + frozen.Seconds + " seconds. " + "If you do move, you'll lose " + frozen.PointsLostIfHeMoves + " points! You'll be notified when you are thawed out.",
+	});
+};
+
+var notifyThePlayerThatHeIsUnfrozen = function(frozen) {
+	ee.emit("removeState", frozen.PlayerId, "frozen", {
+		Notification : "You are now thawed out and free to move.",
+	});
+};
+
+ee.on("addState", function(playerId, state, payload) {
+	var sockets = socketStore.Get(function(s) {
+		return s.PlayerId == playerId;
+	});
+	console.log("### EMITTING addState EVENT to " + sockets.length + " players.");
+	linq.Each(sockets, function(playerSocket) {
+		console.log("### EMITTING addState EVENT to: " + JSON.stringify(playerId));
+
+		playerSocket.Socket.emit("addState", {
+			State : state,
+			Payload : payload
+		});
+		console.log("### DONE.");
+	});
+});
+
+ee.on("removeState", function(playerId, state, payload) {
+	var sockets = socketStore.Get(function(s) {
+		return s.PlayerId == playerId;
+	});
+	console.log("### EMITTING removeState EVENT to " + sockets.length + " players.");
+	linq.Each(sockets, function(playerSocket) {
+		console.log("### EMITTING removeState EVENT to: " + JSON.stringify(playerId));
+
+		playerSocket.Socket.emit("removeState", {
+			State : state,
+			Payload : payload
+		});
+		console.log("### DONE.");
+	});
+});
+
 ee.on("penaltyBecasueYouMovedWhenFrozen", function(frozen) {
 	notifyThePlayerOfTheFrozenMovementPenaly(frozen);
 });
 
 ee.on("startFrozenPeriod", function(frozen) {
+
+	var endFrozenPeriod = function() {
+		ee.removeListener("playerLocationChanged", fn);
+		notifyThePlayerThatHeIsUnfrozen(frozen);
+	};
 
 	function lineDistance(point1, point2) {
 		var xs = 0;
@@ -163,16 +213,18 @@ ee.on("startFrozenPeriod", function(frozen) {
 
 		if ((distance * radiusOfEarth) > 10) {
 			ee.emit("playerMovedWhenHeWasFrozen", frozen);
+
+			//player moved, so they were penalized. Frozen period ends.
+			endFrozenPeriod();
 		}
 	};
 
 	ee.on("playerLocationChanged", fn);
 
 	//set a timeout to stop watching after X seconds
-	setTimeout(function() {
-		ee.removeListener("playerLocationChanged", fn);
-	}, frozen.Seconds * 1000);
+	setTimeout(endFrozenPeriod, frozen.Seconds * 1000);
 
+	notifyThePlayerThatHeIsFrozen(frozen);
 });
 
 exports.Init = function(socket, getSockets) {

@@ -129,6 +129,22 @@ define(["config", "localstore"], function(config, local) {
 						cb(frozen);
 					});
 				},
+				SetAddState : function(cb) {
+					//addState is a message from the server that the player has entered some state of being. 
+					//Ex: for freezetag, a state might be "frozen" after someone tagged him
+					socket.on('addState', function(payload) {
+						log("EVENT addState");
+						cb(payload);
+					});
+				},
+				SetRemoveState : function(cb) {
+					//addState is a message from the server that the player has entered some state of being. 
+					//Ex: for freezetag, a state might be "frozen" after someone tagged him
+					socket.on('removeState', function(payload) {
+						log("EVENT removeState");
+						cb(payload);
+					});
+				},
 				SetPointsReduced : function(cb) {
 					socket.on('pointsreduced', function(change) {
 						log("EVENT pointsreduced");

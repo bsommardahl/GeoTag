@@ -300,7 +300,7 @@ define(["config", "localstore", "server", "mobile"], function(config, local, ser
 		});
 
 		server.Events.SetPenalty(function(frozen) {
-			toastr.warning("You moved when you were frozen. So, you just lost " + frozen.LostPoints + " points.");
+			toastr.error("You moved when you were frozen. So, you just lost " + frozen.LostPoints + " points.");
 		});
 
 		server.Events.SetNewPlayerInRange(function(change) {
@@ -314,6 +314,14 @@ define(["config", "localstore", "server", "mobile"], function(config, local, ser
 		});
 
 		server.Events.SetNearbyPlayers(refreshPlayerMarkers);
+
+		server.Events.SetAddState(function(addState) {
+			toastr.info(addState.Payload.Notification);
+		});
+
+		server.Events.SetRemoveState(function(removeState){
+			toastr.info(removeState.Payload.Notification);
+		});
 
 		var showLocation = ko.observable();
 
