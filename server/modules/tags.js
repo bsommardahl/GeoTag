@@ -1,10 +1,11 @@
 var q = require('q');
 var moment = require('moment');
-var ee = require("../eventer");
+var eventer = require("../eventer");
 var players = require("./players");
 var dc = require("../dataContext");
 var linq = require("../linq");
 var socketStore = require("../socketStore");
+var power = require("./power");
 
 var insertNewTag = function(newTag) {
 	var def = q.defer();
@@ -29,19 +30,19 @@ var insertNewTag = function(newTag) {
 							LostPoints : 50
 						});
 
-						ee.emit("takeawaypoints", {
+						eventer.emit("takeawaypoints", {
 							PlayerId : newTag.TaggedId,
 							Points : 50,
 							Reason : newTag
 						});
-						ee.emit("givepoints", {
+						eventer.emit("givepoints", {
 							PlayerId : newTag.TaggerId,
 							Points : 50,
 							Reason : newTag
 						});
-						ee.emit("startFrozenPeriod", {
+						eventer.emit("startFrozenPeriod", {
 							PlayerId : newTag.TaggedId,
-							Seconds : 15,
+							Seconds : 30,
 							PointsLostIfHeMoves : 200,
 							Location : tagged.LastLocation
 						});
@@ -65,7 +66,7 @@ var create = function(newTag) {
 	//the X meters is the "TagZone".
 
 	players.Get(newTag.TaggerId).then(function(player) {
-		players.GetPlayersInTagZone(player._id, player.LastLocation[0], player.LastLocation[1]).then(function(players) {
+		power.GetPlayersInPowerRange(player._id, player.LastLocation[0], player.LastLocation[1]).then(function(players) {
 			//is the tagged player, in fact, in the tagZone?
 			if (linq.Any(players, function(p) {
 				return p._id.toString() == newTag.TaggedId;
@@ -101,14 +102,14 @@ var notifyPlayerThatHeWasTagged = function(tagReport) {
 	});
 };
 
-ee.on("playerMovedWhenHeWasFrozen", function(frozen) {
+eventer.on("playerMovedWhenHeWasFrozen", function(frozen) {
 	//take points away
-	ee.emit("takeawaypoints", {
+	eventer.emit("takeawaypoints", {
 		PlayerId : frozen.PlayerId,
 		Points : frozen.PointsLostIfHeMoves,
 	});
 	//notify the player
-	ee.emit("penaltyBecasueYouMovedWhenFrozen", {
+	notifyThePlayerOfTheFrozenMovementPenaly({
 		PlayerId : frozen.PlayerId,
 		LostPoints : frozen.PointsLostIfHeMoves
 	});
@@ -129,18 +130,18 @@ var notifyThePlayerOfTheFrozenMovementPenaly = function(frozen) {
 };
 
 var notifyThePlayerThatHeIsFrozen = function(frozen) {
-	ee.emit("addState", frozen.PlayerId, "frozen", {
+	eventer.emit("addState", frozen.PlayerId, "frozen", {
 		Notification : "You are FROZEN. You cannot move from your current location for " + frozen.Seconds + " seconds. " + "If you do move, you'll lose " + frozen.PointsLostIfHeMoves + " points! You'll be notified when you are thawed out.",
 	});
 };
 
 var notifyThePlayerThatHeIsUnfrozen = function(frozen) {
-	ee.emit("removeState", frozen.PlayerId, "frozen", {
+	eventer.emit("removeState", frozen.PlayerId, "frozen", {
 		Notification : "You are now thawed out and free to move.",
 	});
 };
 
-ee.on("addState", function(playerId, state, payload) {
+eventer.on("addState", function(playerId, state, payload) {
 	var sockets = socketStore.Get(function(s) {
 		return s.PlayerId == playerId;
 	});
@@ -156,7 +157,7 @@ ee.on("addState", function(playerId, state, payload) {
 	});
 });
 
-ee.on("removeState", function(playerId, state, payload) {
+eventer.on("removeState", function(playerId, state, payload) {
 	var sockets = socketStore.Get(function(s) {
 		return s.PlayerId == playerId;
 	});
@@ -172,16 +173,7 @@ ee.on("removeState", function(playerId, state, payload) {
 	});
 });
 
-ee.on("penaltyBecasueYouMovedWhenFrozen", function(frozen) {
-	notifyThePlayerOfTheFrozenMovementPenaly(frozen);
-});
-
-ee.on("startFrozenPeriod", function(frozen) {
-
-	var endFrozenPeriod = function() {
-		ee.removeListener("playerLocationChanged", fn);
-		notifyThePlayerThatHeIsUnfrozen(frozen);
-	};
+eventer.on("startFrozenPeriod", function(frozen) {
 
 	function lineDistance(point1, point2) {
 		var xs = 0;
@@ -197,8 +189,9 @@ ee.on("startFrozenPeriod", function(frozen) {
 	}
 
 	//start watching for movement
-	var fn = function(player) {
+	var checkIfMovementWasTooMuch = function(player) {
 
+		console.log("### FROZEN - checking if movement was too much");
 		//if the change is more than X meters, then take away points and notify user
 
 		//calculate distance between froen location and player location
@@ -209,20 +202,30 @@ ee.on("startFrozenPeriod", function(frozen) {
 			x : frozen.Location[0],
 			y : frozen.Location[1]
 		});
+		
 		var radiusOfEarth = 6378100;
 
-		if ((distance * radiusOfEarth) > 10) {
-			ee.emit("playerMovedWhenHeWasFrozen", frozen);
+		if ((distance * radiusOfEarth) > 10) { //not sure this is correct
+			eventer.emit("playerMovedWhenHeWasFrozen", frozen);
 
 			//player moved, so they were penalized. Frozen period ends.
 			endFrozenPeriod();
+			
+			//kill timeout?
 		}
 	};
 
-	ee.on("playerLocationChanged", fn);
+	eventer.on("playerLocationChanged", function(player) {
+		checkIfMovementWasTooMuch(player);
+	});
+
+	var endFrozenPeriod = function() {
+		eventer.removeListener("playerLocationChanged", checkIfMovementWasTooMuch);
+		notifyThePlayerThatHeIsUnfrozen(frozen);
+	};
 
 	//set a timeout to stop watching after X seconds
-	setTimeout(endFrozenPeriod, frozen.Seconds * 1000);
+	var timeout = setTimeout(endFrozenPeriod, frozen.Seconds * 1000);
 
 	notifyThePlayerThatHeIsFrozen(frozen);
 });

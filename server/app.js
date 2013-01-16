@@ -1,4 +1,5 @@
-var locations = require('./routes/locations'), tags = require('./routes/tags'), players = require('./routes/players');
+var locations = require('./modules/locations'), tags = require('./modules/tags'), players = require('./modules/players');
+var power = require("./modules/power"), vision = require("./modules/vision"), vulnerability = require("./modules/vulnerability")
 var eventer = require("./eventer");
 var socketStore = require("./socketStore");
 var q = require('q');
@@ -18,10 +19,13 @@ io.sockets.on('connection', function(socket) {
 	players.Init(socket);
 	locations.Init(socket);
 	tags.Init(socket);
+	vision.Init(socket);
+	vulnerability.Init(socket);
+	power.Init(socket);
 
 	socket.on('disconnect', function() {
 		socketStore.Remove(function(s) {
 			return s.SocketId == socket.id;
 		});
 	});
-});
+}); 
