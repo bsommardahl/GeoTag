@@ -25,6 +25,7 @@ var Location = function(playerId, x, y) {
 		Created : created
 	};
 };
+exports.Location = Location;
 
 var insertNewLocation = function(newLocation) {
 	var def = q.defer();
@@ -65,7 +66,6 @@ var updateThisPlayersLastLocation = function(newLocation) {
 				players.Get(newLocation.PlayerId).then(function(player) {
 					console.log("### EMITTING DOMAIN EVENT yourPositionChanged.");
 					eventer.emit("yourPositionChanged", player);
-					eventer.emit("playerLocationChanged", player);
 					def.resolve();
 				});
 			}
@@ -97,9 +97,10 @@ var create = function(location) {
 				NewLocation : newLocation,
 				OldLocation : oldLocation
 			};
+			
 			eventer.emit("notifyPlayerLeavingRange", payload);
 			eventer.emit("notifyPlayerEnteringRange", payload);
-
+			eventer.emit("notifyPlayerAlreadyInRangeChangedPosition", payload);
 		});
 
 	});
@@ -130,28 +131,36 @@ eventer.on("yourPositionChanged", function(player) {
 });
 
 eventer.on("playerLocationChanged", function(player) {
+	
 	console.log("### RESPONDING TO DOMAIN EVENT playerLocationChanged.");
-	var notifyAllOfPlayerPositionChange = function(player) {
 
-		getNearbyPlayers(player._id, player.LastLocation[0], player.LastLocation[1]).then(function(nearbyPlayers) {
+	//this function will be responsible for
+	// 1) Notifying players already in my visual range that I moved
+	// 2) Notifying players that are newly in my visual range that I came into range
+	// 3) Notifying players in my previous visual range that I am leaving range
 
-			//notify the nearby players that the player's location changed
-			linq.Each(nearbyPlayers, function(nearbyPlayer) {
-				//get the socket for this player
-				var socks = socketStore.Get(function(s) {
-					return s.PlayerId == nearbyPlayer._id.toString();
-				});
-				console.log("### EMITTING playerpositionchanged EVENT to " + socks.length + " players.");
-
-				linq.Each(socks, function(sock) {
-					console.log("### EMITTING playerpositionchanged EVENT to: " + JSON.stringify(nearbyPlayer._id));
-					sock.Socket.emit("playerpositionchanged", player);
-					console.log("### DONE.");
-				});
-
-			});
-		});
-	};
-	notifyAllOfPlayerPositionChange(player);
+	// var notifyAllOfPlayerPositionChange = function(player) {
+// 
+		// vision.GetPlayersInVisionRange(player._id, player.LastLocation[0], player.LastLocation[1]).then(function(nearbyPlayers) {
+// 
+			// //this may not be necessary if the logic gets moved to
+			// //notify the nearby players that the player's location changed
+			// linq.Each(nearbyPlayers, function(nearbyPlayer) {
+				// //get the socket for this player
+				// var socks = socketStore.Get(function(s) {
+					// return s.PlayerId == nearbyPlayer._id.toString();
+				// });
+				// console.log("### EMITTING playerAlreadyInRangeChangedPosition EVENT to " + socks.length + " players.");
+// 
+				// linq.Each(socks, function(sock) {
+					// console.log("### EMITTING playerAlreadyInRangeChangedPosition EVENT to: " + JSON.stringify(nearbyPlayer._id));
+					// sock.Socket.emit("playerAlreadyInRangeChangedPosition", player);
+					// console.log("### DONE.");
+				// });
+// 
+			// });
+		// });
+	// };
+	// notifyAllOfPlayerPositionChange(player);
 });
 

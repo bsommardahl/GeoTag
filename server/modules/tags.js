@@ -81,7 +81,7 @@ var create = function(newTag) {
 				});
 			} else {
 				//not in tagZone
-				def.reject("Tagged player is not in the tagZone.");
+				def.reject("You can't tag that player.");
 			}
 		});
 	});
@@ -191,6 +191,9 @@ eventer.on("startFrozenPeriod", function(frozen) {
 	//start watching for movement
 	var checkIfMovementWasTooMuch = function(player) {
 
+		if (player._id != frozen.PlayerId)
+			return;
+
 		console.log("### FROZEN - checking if movement was too much");
 		//if the change is more than X meters, then take away points and notify user
 
@@ -202,25 +205,23 @@ eventer.on("startFrozenPeriod", function(frozen) {
 			x : frozen.Location[0],
 			y : frozen.Location[1]
 		});
-		
+
 		var radiusOfEarth = 6378100;
 
-		if ((distance * radiusOfEarth) > 10) { //not sure this is correct
+		if ((distance * radiusOfEarth) > 10) {//not sure this is correct
 			eventer.emit("playerMovedWhenHeWasFrozen", frozen);
 
 			//player moved, so they were penalized. Frozen period ends.
 			endFrozenPeriod();
-			
+
 			//kill timeout?
 		}
 	};
 
-	eventer.on("playerLocationChanged", function(player) {
-		checkIfMovementWasTooMuch(player);
-	});
+	eventer.on("yourPositionChanged", checkIfMovementWasTooMuch);
 
 	var endFrozenPeriod = function() {
-		eventer.removeListener("playerLocationChanged", checkIfMovementWasTooMuch);
+		eventer.removeListener("yourPositionChanged", checkIfMovementWasTooMuch);
 		notifyThePlayerThatHeIsUnfrozen(frozen);
 	};
 

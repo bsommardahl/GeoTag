@@ -164,8 +164,8 @@ define(["config", "localstore"], function(config, local) {
 					});
 				},
 				SetPlayerPositionChanged : function(cb) {
-					socket.on("playerpositionchanged", function(player) {
-						log("EVENT playerpositionchanged");
+					socket.on("playerAlreadyInRangeChangedPosition", function(player) {
+						log("EVENT playerAlreadyInRangeChangedPosition");
 						cb(player);
 					});
 

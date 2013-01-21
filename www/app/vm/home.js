@@ -184,10 +184,6 @@ define(["config", "localstore", "server", "mobile"], function(config, local, ser
 			return server.GetNearbyPlayers();
 		};
 
-		server.Events.SetPlayerPositionChanged(function(player) {
-			updatePlayer(player);
-		});
-
 		var updateViewModelWithNewLocation = function(longitude, latitude) {
 			x(longitude);
 			y(latitude);
@@ -313,13 +309,19 @@ define(["config", "localstore", "server", "mobile"], function(config, local, ser
 			removePlayer(change.PlayerThatLeftRange._id);
 		});
 
+		server.Events.SetPlayerPositionChanged(function(change) {
+			var player = change.PlayerThatMoved;
+			player.LastLocation = change.NewPosition.Coords;
+			updatePlayer(player);
+		});
+
 		server.Events.SetNearbyPlayers(refreshPlayerMarkers);
 
 		server.Events.SetAddState(function(addState) {
 			toastr.info(addState.Payload.Notification);
 		});
 
-		server.Events.SetRemoveState(function(removeState){
+		server.Events.SetRemoveState(function(removeState) {
 			toastr.info(removeState.Payload.Notification);
 		});
 

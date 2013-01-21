@@ -143,8 +143,6 @@ var notifyPlayerOfPointsReduced = function(pointChange) {
 };
 
 var takeAwayPoints = function(pointReduction) {
-	console.log("### GETTING PLAYER");
-	console.log(pointReduction);
 	//get player
 	get(pointReduction.PlayerId).then(function(player) {
 		var oldPoints = parseInt(player.Points || 0);
@@ -155,7 +153,7 @@ var takeAwayPoints = function(pointReduction) {
 				PlayerId : updatedPlayer._id,
 				OldPoints : oldPoints,
 				NewPoints : newPoints,
-				Change : pointIncrease.Points
+				Change : pointReduction.Points
 			});
 		});
 	});
@@ -164,8 +162,6 @@ var takeAwayPoints = function(pointReduction) {
 exports.Get = get;
 
 var notifyPlayerOfPointsIncreased = function(change) {
-	console.log("------------------------------------------------ NotifyPlayerOfPointsIncreased()");
-	console.log(change);
 	var playerSockets = socketStore.Get(function(s) {
 		return s.PlayerId == change.PlayerId;
 	});
